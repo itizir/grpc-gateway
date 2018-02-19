@@ -27,7 +27,6 @@ func DefaultHTTPProtoErrorHandler(ctx context.Context, mux *ServeMux, marshaler 
 	const fallback = `{"code": 13, "message": "failed to marshal error message"}`
 
 	w.Header().Del("Trailer")
-	w.Header().Set("Content-Type", marshaler.ContentType())
 
 	s, ok := status.FromError(err)
 	if !ok {
@@ -35,6 +34,7 @@ func DefaultHTTPProtoErrorHandler(ctx context.Context, mux *ServeMux, marshaler 
 	}
 
 	buf, merr := marshaler.Marshal(s.Proto())
+	w.Header().Set("Content-Type", marshaler.ContentType())
 	if merr != nil {
 		grpclog.Printf("Failed to marshal error message %q: %v", s.Proto(), merr)
 		w.WriteHeader(http.StatusInternalServerError)

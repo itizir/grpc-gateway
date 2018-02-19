@@ -42,7 +42,7 @@ func ForwardResponseStream(ctx context.Context, mux *ServeMux, marshaler Marshal
 	if d, ok := marshaler.(Delimited); ok {
 		delimiter = d.Delimiter()
 	} else {
-	    delimiter = []byte("\n")
+		delimiter = []byte("\n")
 	}
 
 	var wroteHeader bool
@@ -66,6 +66,7 @@ func ForwardResponseStream(ctx context.Context, mux *ServeMux, marshaler Marshal
 			handleForwardResponseStreamError(wroteHeader, marshaler, w, err)
 			return
 		}
+		w.Header().Set("Content-Type", marshaler.ContentType())
 		if _, err = w.Write(buf); err != nil {
 			grpclog.Printf("Failed to send response chunk: %v", err)
 			return
@@ -127,6 +128,7 @@ func ForwardResponseMessage(ctx context.Context, mux *ServeMux, marshaler Marsha
 		return
 	}
 
+	w.Header().Set("Content-Type", marshaler.ContentType())
 	if _, err = w.Write(buf); err != nil {
 		grpclog.Printf("Failed to write response: %v", err)
 	}
@@ -154,11 +156,16 @@ func handleForwardResponseStreamError(wroteHeader bool, marshaler Marshaler, w h
 		return
 	}
 	if !wroteHeader {
+		w.Header().Set("Content-Type", marshaler.ContentType())
 		s, ok := status.FromError(err)
 		if !ok {
 			s = status.New(codes.Unknown, err.Error())
 		}
 		w.WriteHeader(HTTPStatusFromCode(s.Code()))
+	}
+	if w.Header().Get("Content-Type") != marshaler.ContentType() {
+		// Don't forward the error if client already started receiving a body of different type.
+		return
 	}
 	if _, werr := w.Write(buf); werr != nil {
 		grpclog.Printf("Failed to notify error to client: %v", werr)

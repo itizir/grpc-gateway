@@ -80,10 +80,12 @@ func (*errorBody) ProtoMessage()    {}
 // The response body returned by this function is a JSON object,
 // which contains a member whose key is "error" and whose value is err.Error().
 func DefaultHTTPError(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.ResponseWriter, _ *http.Request, err error) {
-	const fallback = `{"error": "failed to marshal error message"}`
+	const (
+		fallback     = `{"error": "failed to marshal error message"}`
+		fallbackType = `application/json`
+	)
 
 	w.Header().Del("Trailer")
-	w.Header().Set("Content-Type", marshaler.ContentType())
 
 	s, ok := status.FromError(err)
 	if !ok {
@@ -104,12 +106,14 @@ func DefaultHTTPError(ctx context.Context, mux *ServeMux, marshaler Marshaler, w
 	buf, merr := marshaler.Marshal(body)
 	if merr != nil {
 		grpclog.Printf("Failed to marshal error message %q: %v", body, merr)
+		w.Header().Set("Content-Type", fallbackType)
 		w.WriteHeader(http.StatusInternalServerError)
 		if _, err := io.WriteString(w, fallback); err != nil {
 			grpclog.Printf("Failed to write response: %v", err)
 		}
 		return
 	}
+	w.Header().Set("Content-Type", marshaler.ContentType())
 
 	md, ok := ServerMetadataFromContext(ctx)
 	if !ok {
